@@ -1,7 +1,0 @@
-{
-  "name": "PDF to Excel",
-  "description": "Convert PDF documents to structured Excel spreadsheets with AI reading, table detection, and instant export.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
-
