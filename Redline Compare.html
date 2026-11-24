@@ -1,0 +1,795 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Redline Compare</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single working column — file intake band, then summary, then tabbed findings. Blackline vernacular: struck red for removed, underlined green for inserted. */
+:root{
+  --bg:#f5f6f8; --surface:#ffffff; --sunk:#eceef2; --line:#d7dbe2; --fg:#1b2230; --muted:#5d6676;
+  --ink:#1f3a68; --ink-soft:#e3e9f4;
+  --del:#b3261e; --del-bg:#fbe3e1; --ins:#1d6b3a; --ins-bg:#dcf2e3; --mod:#8a5a00; --mod-bg:#fdf0d2;
+  --f-ui:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-doc:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --surface:#1a1f28; --sunk:#222834; --line:#323a48; --fg:#e4e8ef; --muted:#9aa3b2;
+  --ink:#9db8e8; --ink-soft:#24314a;
+  --del:#ff8b80; --del-bg:#3d1c1a; --ins:#7fd69c; --ins-bg:#16341f; --mod:#f0c36a; --mod-bg:#3a2e12; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --surface:#1a1f28; --sunk:#222834; --line:#323a48; --fg:#e4e8ef; --muted:#9aa3b2;
+  --ink:#9db8e8; --ink-soft:#24314a;
+  --del:#ff8b80; --del-bg:#3d1c1a; --ins:#7fd69c; --ins-bg:#16341f; --mod:#f0c36a; --mod-bg:#3a2e12; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 56px;display:flex;flex-direction:column;gap:22px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:0;line-height:1.1;text-wrap:balance}
+h1 .del{color:var(--del);text-decoration:line-through;text-decoration-thickness:2px;font-weight:700}
+h1 .ins{color:var(--ins);text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:4px}
+.lede{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.privacy{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.privacy svg{flex:none}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0;font-weight:700}
+
+/* intake */
+.intake{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:16px}
+.drops{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:stretch}
+.vs{align-self:center;font-family:var(--f-mono);color:var(--muted);font-size:13px}
+.drop{position:relative;border:1.5px dashed var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px;min-width:0;cursor:pointer;transition:border-color .15s,background .15s;background:var(--bg)}
+.drop:hover,.drop.over{border-color:var(--ink);background:var(--ink-soft)}
+.drop:focus-within{outline:2px solid var(--ink);outline-offset:2px}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.drop .tag{font-family:var(--f-mono);font-size:12px;font-weight:500;display:flex;gap:8px;align-items:center}
+.drop .tag b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:4px;color:#fff;font-weight:600}
+.drop[data-side="a"] .tag b{background:var(--del)}
+.drop[data-side="b"] .tag b{background:var(--ins)}
+:root[data-theme="dark"] .drop .tag b{color:#12161d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .drop .tag b{color:#12161d}}
+.drop .fname{font-weight:600;overflow-wrap:anywhere}
+.drop .fmeta{font-size:12.5px;color:var(--muted)}
+.drop.filled{border-style:solid}
+.controls{display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;justify-content:space-between}
+.opts{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:13.5px}
+.opts label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.btn{font:inherit;font-weight:600;border-radius:6px;border:1px solid var(--ink);background:var(--ink);color:var(--surface);padding:9px 18px;cursor:pointer;display:inline-flex;gap:8px;align-items:center}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn:focus-visible,.tab:focus-visible,.difflist button:focus-visible,.more:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.status{font-size:13.5px;color:var(--muted);min-height:1.5em}
+.status.err{color:var(--del)}
+.formats{font-size:12.5px;color:var(--muted)}
+
+/* summary */
+.result{display:flex;flex-direction:column;gap:18px}
+.examplebar{display:flex;gap:10px;align-items:center;background:var(--mod-bg);color:var(--fg);border-radius:8px;padding:10px 14px;font-size:13.5px}
+.examplebar b{color:var(--mod)}
+.summary{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:18px}
+.files{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.fileline{display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:baseline}
+.fileline .k{font-family:var(--f-mono);font-size:12px;font-weight:600}
+.fileline .k.a{color:var(--del)} .fileline .k.b{color:var(--ins)}
+.fileline .n{font-weight:600;overflow-wrap:anywhere}
+.fileline .m{display:block;font-size:12.5px;color:var(--muted);font-weight:400}
+.verdict{font-size:14px;border-top:1px solid var(--line);padding-top:10px}
+.counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-content:start}
+.count{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.count .v{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.count .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.count.mod .v{color:var(--mod)} .count.ins .v{color:var(--ins)} .count.del .v{color:var(--del)}
+.sim{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
+.simbar{height:8px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.simbar i{display:block;height:100%;background:var(--ink)}
+
+/* downloads */
+.dls{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.dlrow{display:flex;flex-wrap:wrap;gap:10px}
+.dlnote{font-size:12.5px;color:var(--muted)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{font:inherit;font-size:14px;font-weight:600;color:var(--muted);background:none;border:0;border-bottom:2px solid transparent;padding:10px 14px;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.panel{background:var(--surface);border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;padding:14px;min-width:0}
+
+/* difference list */
+.difflist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.difflist li{border-bottom:1px solid var(--line)}
+.difflist li:last-child{border-bottom:0}
+.difflist button{all:unset;box-sizing:border-box;width:100%;display:grid;grid-template-columns:44px 96px minmax(0,1fr);gap:12px;padding:11px 6px;cursor:pointer;border-radius:6px}
+.difflist button:hover{background:var(--sunk)}
+.dn{font-family:var(--f-mono);font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pill{justify-self:start;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;height:fit-content}
+.pill.modified{background:var(--mod-bg);color:var(--mod)} .pill.added{background:var(--ins-bg);color:var(--ins)} .pill.removed{background:var(--del-bg);color:var(--del)}
+.dbody{display:flex;flex-direction:column;gap:3px;min-width:0}
+.dloc{font-family:var(--f-mono);font-size:12.5px;color:var(--ink)}
+.ddesc{font-size:14px;overflow-wrap:anywhere}
+.ddesc q{quotes:"\201C" "\201D"}
+.ddesc .o{color:var(--del)} .ddesc .n{color:var(--ins)}
+.empty{padding:28px 10px;text-align:center;color:var(--muted)}
+.filter{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.chip{font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;padding:4px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+
+/* side by side */
+.scroll{overflow-x:auto}
+table.sbs{width:100%;border-collapse:collapse;table-layout:fixed;min-width:640px;font-family:var(--f-doc);font-size:15px}
+table.sbs th{font-family:var(--f-ui);font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface)}
+table.sbs td{vertical-align:top;padding:5px 10px;border-bottom:1px solid var(--sunk);overflow-wrap:anywhere;white-space:pre-wrap}
+table.sbs td.loc{font-family:var(--f-mono);font-size:11px;color:var(--muted);width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.sbs col.locc{width:92px}
+tr.r-removed td.a{background:var(--del-bg)} tr.r-added td.b{background:var(--ins-bg)}
+tr.r-modified td.a,tr.r-modified td.b{background:var(--mod-bg)}
+tr.flash td{animation:flash 1.4s ease-out}
+@keyframes flash{0%{box-shadow:inset 0 0 0 2px var(--ink)}100%{box-shadow:inset 0 0 0 2px transparent}}
+@media (prefers-reduced-motion:reduce){tr.flash td{animation:none;box-shadow:inset 0 0 0 2px var(--ink)}}
+del,.x-del{color:var(--del);background:var(--del-bg);text-decoration:line-through;text-decoration-thickness:1.5px}
+ins,.x-ins{color:var(--ins);background:var(--ins-bg);text-decoration:underline;text-underline-offset:3px}
+tr.gap td{text-align:center;padding:4px}
+.more{font:inherit;font-family:var(--f-ui);font-size:12.5px;color:var(--ink);background:var(--sunk);border:0;border-radius:4px;padding:3px 12px;cursor:pointer}
+.redline{font-family:var(--f-doc);font-size:16px;line-height:1.65;max-width:78ch;display:flex;flex-direction:column;gap:10px}
+.redline p{margin:0;white-space:pre-wrap}
+.redline .ploc{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-right:8px}
+.redline p.p-removed{color:var(--del);text-decoration:line-through}
+.redline p.p-added{color:var(--ins);text-decoration:underline;text-underline-offset:3px}
+
+/* sheet grid */
+table.grid{border-collapse:collapse;font-family:var(--f-ui);font-size:13px;font-variant-numeric:tabular-nums}
+table.grid th,table.grid td{border:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top;max-width:280px;overflow-wrap:anywhere}
+table.grid th{background:var(--sunk);font-weight:600;color:var(--muted);font-family:var(--f-mono);font-size:11.5px}
+table.grid td.rn{font-family:var(--f-mono);font-size:11px;color:var(--muted);background:var(--sunk);white-space:nowrap}
+table.grid tr.r-added td:not(.rn){background:var(--ins-bg)}
+table.grid tr.r-removed td:not(.rn){background:var(--del-bg);text-decoration:line-through;color:var(--del)}
+table.grid td.chg{background:var(--mod-bg)}
+.sheethead{font-weight:700;font-size:15px;margin:18px 0 8px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.sheethead:first-child{margin-top:0}
+.sheethead span{font-size:12.5px;color:var(--muted);font-weight:500}
+.note{font-size:13px;color:var(--muted);margin:0 0 10px}
+
+@media (max-width:760px){
+  .drops{grid-template-columns:1fr}
+  .vs{justify-self:center}
+  .summary{grid-template-columns:1fr}
+  .counts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .difflist button{grid-template-columns:36px minmax(0,1fr)}
+  .difflist .pill{grid-column:2}
+  .difflist .dbody{grid-column:2}
+  h1{font-size:25px}
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Redline <span class="del">Check</span> <span class="ins">Compare</span></h1>
+      <p class="lede">Put the earlier version of a file on the left and the later version on the right. Every change is listed with its page, paragraph or cell, and you can download a marked-up copy.</p>
+    </div>
+    <div class="privacy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Files are read inside your browser and are not uploaded anywhere.</div>
+  </header>
+
+  <section class="intake" aria-label="Choose files">
+    <div class="drops">
+      <label class="drop" data-side="a" id="dropA">
+        <input type="file" id="fileA" accept=".pdf,.docx,.xlsx,.xlsm,.xls,.csv,.txt">
+        <span class="tag"><b>A</b>ORIGINAL / EARLIER VERSION</span>
+        <span class="fname" id="nameA">Choose or drop a file</span>
+        <span class="fmeta" id="metaA">PDF, Word (.docx) or Excel</span>
+      </label>
+      <span class="vs">vs</span>
+      <label class="drop" data-side="b" id="dropB">
+        <input type="file" id="fileB" accept=".pdf,.docx,.xlsx,.xlsm,.xls,.csv,.txt">
+        <span class="tag"><b>B</b>REVISED / LATER VERSION</span>
+        <span class="fname" id="nameB">Choose or drop a file</span>
+        <span class="fmeta" id="metaB">PDF, Word (.docx) or Excel</span>
+      </label>
+    </div>
+    <div class="controls">
+      <div class="opts">
+        <label><input type="checkbox" id="optWs" checked> Ignore extra spaces</label>
+        <label><input type="checkbox" id="optCase"> Ignore upper/lower case</label>
+        <label><input type="checkbox" id="optBlank" checked> Skip blank lines</label>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn ghost" id="swapBtn" type="button">Swap A ⇄ B</button>
+        <button class="btn" id="cmpBtn" type="button" disabled>Compare files</button>
+      </div>
+    </div>
+    <div class="status" id="status" role="status"></div>
+    <div class="formats">Works with .pdf (text-based, not scanned), .docx, .xlsx / .xls / .csv and .txt. Two different formats can be compared too, for example a PDF against its Word draft. Old .doc files must first be saved as .docx.</div>
+  </section>
+
+  <section class="result" id="result" aria-live="polite"></section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
+<script>
+"use strict";
+const LIB = {
+  pdf: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js",
+  pdfw: "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js",
+  xlsx: "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js",
+  mammoth: "https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js",
+  docx: "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"
+};
+const loaded = {};
+function loadScript(src){
+  if(loaded[src]) return loaded[src];
+  loaded[src] = new Promise((res,rej)=>{const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>{delete loaded[src];rej(new Error("Could not load a helper library. Check the internet connection and try again."))};document.head.appendChild(s);});
+  return loaded[src];
+}
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtSize = n => n < 1024 ? n+" B" : n < 1048576 ? (n/1024).toFixed(0)+" KB" : (n/1048576).toFixed(1)+" MB";
+const clip = (s,n=90) => { s = String(s); return s.length > n ? s.slice(0,n-1)+"…" : s; };
+
+const state = { fileA:null, fileB:null, result:null, filter:"all", tab:"list" };
+
+/* ---------- file intake ---------- */
+function setFile(side, file){
+  state["file"+side.toUpperCase()] = file;
+  const S = side.toUpperCase();
+  $("name"+S).textContent = file ? file.name : "Choose or drop a file";
+  $("meta"+S).textContent = file ? `${kindOf(file.name).label} · ${fmtSize(file.size)}` : "PDF, Word (.docx) or Excel";
+  $("drop"+side.toUpperCase()).classList.toggle("filled", !!file);
+  $("cmpBtn").disabled = !(state.fileA && state.fileB);
+  setStatus("");
+}
+function kindOf(name){
+  const ext = (name.split(".").pop()||"").toLowerCase();
+  if(ext==="pdf") return {k:"pdf",label:"PDF"};
+  if(ext==="docx") return {k:"docx",label:"Word document"};
+  if(["xlsx","xlsm","xls","csv","ods"].includes(ext)) return {k:"sheet",label: ext==="csv"?"CSV sheet":"Excel workbook"};
+  if(ext==="txt") return {k:"txt",label:"Text file"};
+  if(ext==="doc") return {k:"doc",label:"Old Word (.doc)"};
+  return {k:"other",label:ext.toUpperCase()||"File"};
+}
+["a","b"].forEach(side=>{
+  const input = $("file"+side.toUpperCase()), drop = $("drop"+side.toUpperCase());
+  input.addEventListener("change", ()=> setFile(side, input.files[0]||null));
+  drop.addEventListener("dragover", e=>{e.preventDefault();drop.classList.add("over")});
+  drop.addEventListener("dragleave", ()=>drop.classList.remove("over"));
+  drop.addEventListener("drop", e=>{e.preventDefault();drop.classList.remove("over");const f=e.dataTransfer.files[0];if(f) setFile(side,f);});
+});
+$("swapBtn").addEventListener("click", ()=>{ const a=state.fileA,b=state.fileB; setFile("a",b); setFile("b",a); });
+function setStatus(msg, err){ const s=$("status"); s.textContent=msg; s.classList.toggle("err",!!err); }
+
+/* ---------- extraction ---------- */
+async function extract(file){
+  const kind = kindOf(file.name).k;
+  const buf = await file.arrayBuffer();
+  if(kind==="doc") throw new Error(`"${file.name}" is an old .doc file. Open it in Word and use Save As → .docx, then try again.`);
+  if(kind==="pdf") return extractPdf(buf, file.name);
+  if(kind==="docx") return extractDocx(buf, file.name);
+  if(kind==="sheet") return extractSheet(buf, file.name);
+  const text = new TextDecoder().decode(buf);
+  return {name:file.name, kind:"txt", meta:"", units: text.split(/\r?\n/).map((t,i)=>({loc:`Line ${i+1}`, text:t}))};
+}
+async function extractPdf(buf, name){
+  await loadScript(LIB.pdf); await loadScript(LIB.pdfw);
+  const lib = window.pdfjsLib || window["pdfjs-dist/build/pdf"];
+  lib.GlobalWorkerOptions.workerSrc = LIB.pdfw;
+  const pdf = await lib.getDocument({data:new Uint8Array(buf), isEvalSupported:false}).promise;
+  const units = [];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    let line="", lastY=null, ln=0;
+    const push=()=>{ if(line.trim()){ ln++; units.push({loc:`Page ${p}, line ${ln}`, page:p, text:line.replace(/\s+$/,"")}); } line=""; };
+    for(const it of tc.items){
+      if(!("str" in it)) continue;
+      const y = it.transform ? it.transform[5] : null;
+      if(lastY!==null && y!==null && Math.abs(y-lastY)>2 && line) push();
+      line += it.str;
+      if(y!==null) lastY=y;
+      if(it.hasEOL) push();
+    }
+    push();
+  }
+  const meta = `${pdf.numPages} page${pdf.numPages>1?"s":""}, ${units.length} lines of text`;
+  const warn = units.length===0 ? "This PDF has no text layer (it looks scanned). Only typed PDFs can be compared; run OCR on it first." : "";
+  return {name, kind:"pdf", meta, units, warn};
+}
+async function extractDocx(buf, name){
+  await loadScript(LIB.mammoth);
+  const r = await window.mammoth.extractRawText({arrayBuffer:buf});
+  const paras = r.value.split(/\n/);
+  const units=[]; let n=0;
+  for(const t of paras){ if(t.trim()===""){ continue; } n++; units.push({loc:`Para ${n}`, text:t}); }
+  return {name, kind:"docx", meta:`${units.length} paragraphs`, units};
+}
+async function extractSheet(buf, name){
+  await loadScript(LIB.xlsx);
+  const wb = window.XLSX.read(new Uint8Array(buf), {type:"array", cellDates:true});
+  const sheets=[]; const units=[];
+  for(const sn of wb.SheetNames){
+    const ws = wb.Sheets[sn];
+    if(!ws || !ws["!ref"]){ sheets.push({name:sn, rows:[], r0:0, c0:0}); continue; }
+    const rg = window.XLSX.utils.decode_range(ws["!ref"]);
+    const rows = window.XLSX.utils.sheet_to_json(ws,{header:1, raw:false, defval:"", blankrows:true}).map(r=>{ r=r.map(v=>String(v??"")); while(r.length && r[r.length-1]==="") r.pop(); return r; });
+    sheets.push({name:sn, rows, r0:rg.s.r, c0:rg.s.c});
+    rows.forEach((r,i)=>{ if(r.some(v=>v!=="")) units.push({loc:`${sn} row ${rg.s.r+i+1}`, text:r.join(" | ")}); });
+  }
+  const nrows = sheets.reduce((s,x)=>s+x.rows.length,0);
+  return {name, kind:"sheet", meta:`${sheets.length} sheet${sheets.length>1?"s":""}, ${nrows} rows`, units, sheets};
+}
+
+/* ---------- diff helpers ---------- */
+function normFn(opt){ return t => { let s=String(t??""); if(opt.ws) s=s.replace(/\s+/g," ").trim(); if(opt.case) s=s.toLowerCase(); return s; }; }
+function wordParts(a,b,opt){ return Diff.diffWordsWithSpace(a,b,{ignoreCase:!!opt.case}); }
+function similarity(a,b){
+  if(a===b) return 1; if(!a||!b) return 0;
+  const parts = Diff.diffWords(a,b); let same=0;
+  for(const p of parts) if(!p.added&&!p.removed) same+=p.value.length;
+  return 2*same/(a.length+b.length);
+}
+/* walk jsdiff array output, returning [{op:'eq'|'del'|'ins'|'rep', a:[idx], b:[idx]}] */
+function blocks(ka,kb){
+  const parts = Diff.diffArrays(ka,kb); const out=[]; let ia=0, ib=0;
+  for(let k=0;k<parts.length;k++){
+    const p=parts[k], n=p.value.length;
+    if(!p.added && !p.removed){ out.push({op:"eq", a:range(ia,n), b:range(ib,n)}); ia+=n; ib+=n; continue; }
+    const q=parts[k+1];
+    if(q && (q.added||q.removed) && q.added!==p.added){
+      const del = p.removed ? p : q, ins = p.added ? p : q;
+      out.push({op:"rep", a:range(ia,del.value.length), b:range(ib,ins.value.length)});
+      ia+=del.value.length; ib+=ins.value.length; k++; continue;
+    }
+    if(p.removed){ out.push({op:"del", a:range(ia,n), b:[]}); ia+=n; }
+    else { out.push({op:"ins", a:[], b:range(ib,n)}); ib+=n; }
+  }
+  return out;
+}
+function range(s,n){ const r=new Array(n); for(let i=0;i<n;i++) r[i]=s+i; return r; }
+/* pair a replace block monotonically by similarity */
+function pairUp(ai, bi, simf, thr){
+  const res=[]; let j=0;
+  for(const i of ai){
+    let best=-1, bestS=thr;
+    for(let jj=j; jj<Math.min(bi.length, j+4); jj++){ const s=simf(i, bi[jj]); if(s>=bestS){ bestS=s; best=jj; } }
+    if(best<0){ res.push({t:"removed", a:i}); continue; }
+    for(;j<best;j++) res.push({t:"added", b:bi[j]});
+    res.push({t:"modified", a:i, b:bi[best]}); j=best+1;
+  }
+  for(;j<bi.length;j++) res.push({t:"added", b:bi[j]});
+  return res;
+}
+function hunks(parts){
+  const hs=[]; let cur=null;
+  for(const p of parts){
+    if(!p.added && !p.removed){ if(cur){ hs.push(cur); cur=null; } continue; }
+    if(!cur) cur={del:"",ins:""};
+    if(p.removed) cur.del+=p.value; else cur.ins+=p.value;
+  }
+  if(cur) hs.push(cur);
+  return hs.filter(h=>h.del.trim()||h.ins.trim());
+}
+function describeHunks(hs){
+  const bits = hs.slice(0,3).map(h=>{
+    const d=h.del.trim(), i=h.ins.trim();
+    if(d&&i) return {html:`<q class="o">${esc(clip(d,70))}</q> changed to <q class="n">${esc(clip(i,70))}</q>`, txt:`"${clip(d,70)}" changed to "${clip(i,70)}"`};
+    if(d) return {html:`<q class="o">${esc(clip(d,70))}</q> deleted`, txt:`"${clip(d,70)}" deleted`};
+    return {html:`<q class="n">${esc(clip(i,70))}</q> inserted`, txt:`"${clip(i,70)}" inserted`};
+  });
+  const more = hs.length>3 ? `; ${hs.length-3} more edit${hs.length-3>1?"s":""} in this line` : "";
+  if(!bits.length) return {html:"Spacing or letter case changed", txt:"Spacing or letter case changed"};
+  return {html: bits.map(b=>b.html).join("; ")+more, txt: bits.map(b=>b.txt).join("; ")+more};
+}
+function partsHtml(parts, side){
+  return parts.map(p=>{
+    if(p.added) return side==="a" ? "" : `<ins>${esc(p.value)}</ins>`;
+    if(p.removed) return side==="b" ? "" : `<del>${esc(p.value)}</del>`;
+    return esc(p.value);
+  }).join("");
+}
+
+/* ---------- text comparison ---------- */
+function compareText(A, B, opt){
+  const nf = normFn(opt);
+  const keep = u => !(opt.blank && u.text.trim()==="");
+  const UA = A.units.filter(keep), UB = B.units.filter(keep);
+  const ka = UA.map(u=>nf(u.text)), kb = UB.map(u=>nf(u.text));
+  const rows=[], diffs=[]; let same=0;
+  for(const bl of blocks(ka,kb)){
+    if(bl.op==="eq"){ bl.a.forEach((ia,x)=>{ rows.push({t:"eq", a:UA[ia], b:UB[bl.b[x]]}); }); same+=bl.a.length; continue; }
+    const pairs = bl.op==="rep" ? pairUp(bl.a, bl.b, (i,j)=>similarity(ka[i],kb[j]), 0.4)
+      : bl.op==="del" ? bl.a.map(i=>({t:"removed",a:i})) : bl.b.map(j=>({t:"added",b:j}));
+    for(const p of pairs){
+      const a = p.a!=null ? UA[p.a] : null, b = p.b!=null ? UB[p.b] : null;
+      const d = {n:diffs.length+1, type:p.t, locA:a?.loc||"", locB:b?.loc||"", a:a?.text||"", b:b?.text||""};
+      if(p.t==="modified"){
+        d.parts = wordParts(opt.ws? a.text.replace(/\s+/g," ").trim():a.text, opt.ws? b.text.replace(/\s+/g," ").trim():b.text, opt);
+        const desc = describeHunks(hunks(d.parts)); d.html=desc.html; d.txt=desc.txt;
+      } else if(p.t==="added"){ d.html=`New text: <q class="n">${esc(clip(b.text,140))}</q>`; d.txt=`New text: "${clip(b.text,140)}"`; }
+      else { d.html=`Text removed: <q class="o">${esc(clip(a.text,140))}</q>`; d.txt=`Text removed: "${clip(a.text,140)}"`; }
+      d.loc = p.t==="removed" ? `A · ${d.locA}` : p.t==="added" ? `B · ${d.locB}` : (d.locA===d.locB ? d.locB : `${d.locB} (was ${d.locA})`);
+      diffs.push(d); rows.push({t:p.t, a, b, d});
+    }
+  }
+  return {mode:"text", rows, diffs, sim: (UA.length+UB.length) ? 2*same/(UA.length+UB.length) : 1, nA:UA.length, nB:UB.length};
+}
+
+/* ---------- spreadsheet comparison ---------- */
+function colName(c){ let s=""; c++; while(c>0){ const m=(c-1)%26; s=String.fromCharCode(65+m)+s; c=Math.floor((c-1)/26); } return s; }
+function compareSheets(A, B, opt){
+  const nf = normFn(opt);
+  const diffs=[], sheets=[]; let same=0, tot=0;
+  const names = [...A.sheets.map(s=>s.name), ...B.sheets.filter(s=>!A.sheets.some(x=>x.name===s.name)).map(s=>s.name)];
+  const single = A.sheets.length===1 && B.sheets.length===1;
+  for(const nm of names){
+    let sa = A.sheets.find(s=>s.name===nm), sb = B.sheets.find(s=>s.name===nm);
+    if(single){ sa=A.sheets[0]; sb=B.sheets[0]; }
+    const label = single && sa.name!==sb.name ? `${sb.name}` : nm;
+    if(!sb){ diffs.push({n:diffs.length+1,type:"removed",loc:`Sheet "${nm}"`,a:`${sa.rows.length} rows`,b:"",html:`Whole sheet <q class="o">${esc(nm)}</q> is missing in B`,txt:`Whole sheet "${nm}" is missing in B`}); continue; }
+    if(!sa){ diffs.push({n:diffs.length+1,type:"added",loc:`Sheet "${nm}"`,a:"",b:`${sb.rows.length} rows`,html:`New sheet <q class="n">${esc(nm)}</q> added in B`,txt:`New sheet "${nm}" added in B`}); continue; }
+    const keep = r => !(opt.blank && r.every(v=>String(v).trim()===""));
+    const RA = sa.rows.map((r,i)=>({r,num:sa.r0+i+1})).filter(x=>keep(x.r));
+    const RB = sb.rows.map((r,i)=>({r,num:sb.r0+i+1})).filter(x=>keep(x.r));
+    const ka = RA.map(x=>x.r.map(nf).join("␟")), kb = RB.map(x=>x.r.map(nf).join("␟"));
+    const header = RB[0]?.r || [];
+    const rows=[]; let ncol=0;
+    RA.forEach(x=>ncol=Math.max(ncol,x.r.length)); RB.forEach(x=>ncol=Math.max(ncol,x.r.length));
+    const cellSim = (i,j)=>{ const a=RA[i].r, b=RB[j].r, n=Math.max(a.length,b.length)||1; let m=0; for(let c=0;c<n;c++) if(nf(a[c])===nf(b[c])) m++; return m/n; };
+    for(const bl of blocks(ka,kb)){
+      if(bl.op==="eq"){ bl.a.forEach((ia,x)=>rows.push({t:"eq", a:RA[ia], b:RB[bl.b[x]]})); same+=bl.a.length; continue; }
+      const pairs = bl.op==="rep" ? pairUp(bl.a, bl.b, cellSim, 0.34)
+        : bl.op==="del" ? bl.a.map(i=>({t:"removed",a:i})) : bl.b.map(j=>({t:"added",b:j}));
+      for(const p of pairs){
+        const a = p.a!=null?RA[p.a]:null, b = p.b!=null?RB[p.b]:null;
+        if(p.t==="modified"){
+          const n=Math.max(a.r.length,b.r.length), chg=[];
+          for(let c=0;c<n;c++){
+            const va=a.r[c]??"", vb=b.r[c]??"";
+            if(nf(va)!==nf(vb)){
+              const addr = colName(sb.c0+c)+b.num, was = a.num!==b.num ? ` (was ${colName(sa.c0+c)}${a.num})` : "";
+              const head = (b.num!==RB[0]?.num && header[c]) ? ` · ${clip(header[c],30)}` : "";
+              const d={n:diffs.length+1,type:"modified",loc:`${label}!${addr}${was}${head}`,a:va,b:vb};
+              d.html = va==="" ? `Value <q class="n">${esc(clip(vb,80))}</q> filled in (was empty)` : vb==="" ? `Value <q class="o">${esc(clip(va,80))}</q> cleared` : `<q class="o">${esc(clip(va,80))}</q> changed to <q class="n">${esc(clip(vb,80))}</q>`;
+              d.txt = va==="" ? `Value "${clip(vb,80)}" filled in (was empty)` : vb==="" ? `Value "${clip(va,80)}" cleared` : `"${clip(va,80)}" changed to "${clip(vb,80)}"`;
+              diffs.push(d); chg.push({c, d});
+            }
+          }
+          rows.push({t:"modified", a, b, chg});
+        } else {
+          const x = p.t==="added"?b:a, txt = x.r.filter(v=>v!=="").join(" | ");
+          const d={n:diffs.length+1,type:p.t,loc:`${label} row ${x.num}${p.t==="removed"?" (in A)":""}`,a:p.t==="removed"?txt:"",b:p.t==="added"?txt:""};
+          d.html = p.t==="added" ? `Row inserted: <q class="n">${esc(clip(txt,120))}</q>` : `Row deleted: <q class="o">${esc(clip(txt,120))}</q>`;
+          d.txt = p.t==="added" ? `Row inserted: "${clip(txt,120)}"` : `Row deleted: "${clip(txt,120)}"`;
+          diffs.push(d); rows.push({t:p.t, a, b, d});
+        }
+      }
+    }
+    tot += RA.length+RB.length;
+    sheets.push({name:label, nameA:sa.name, rows, ncol, c0:sb.c0});
+    if(single) break;
+  }
+  return {mode:"sheet", sheets, diffs, sim: tot? 2*same/tot : 1};
+}
+
+/* ---------- orchestration ---------- */
+async function runCompare(){
+  const opt = {ws:$("optWs").checked, case:$("optCase").checked, blank:$("optBlank").checked};
+  const btn=$("cmpBtn"); btn.disabled=true;
+  try{
+    setStatus("Reading file A…");
+    const A = await extract(state.fileA);
+    setStatus("Reading file B…");
+    const B = await extract(state.fileB);
+    for(const X of [A,B]) if(X.warn) throw new Error(`${X.name}: ${X.warn}`);
+    setStatus("Finding differences…");
+    await new Promise(r=>setTimeout(r,20));
+    const R = (A.kind==="sheet" && B.kind==="sheet") ? compareSheets(A,B,opt) : compareText(A,B,opt);
+    R.A=A; R.B=B; R.opt=opt; R.when=new Date(); R.example=false;
+    state.result=R; state.filter="all"; state.tab="list";
+    render();
+    setStatus(`Done. ${R.diffs.length} difference${R.diffs.length===1?"":"s"} found.`);
+    $("result").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth", block:"start"});
+  }catch(e){ console.error(e); setStatus(e.message||String(e), true); }
+  finally{ btn.disabled = !(state.fileA&&state.fileB); }
+}
+$("cmpBtn").addEventListener("click", runCompare);
+["optWs","optCase","optBlank"].forEach(id=>$(id).addEventListener("change",()=>{ if(state.result && !state.result.example && state.fileA && state.fileB) runCompare(); else if(state.result?.example) loadExample(); }));
+
+/* ---------- rendering ---------- */
+function render(){
+  const R=state.result, el=$("result");
+  const c = {modified:0, added:0, removed:0}; R.diffs.forEach(d=>c[d.type]++);
+  const pct = Math.round(R.sim*100);
+  const verdict = R.diffs.length===0 ? "The two files match. No differences were found with the current settings."
+    : `${R.diffs.length} difference${R.diffs.length>1?"s":""} found. About ${pct}% of the ${R.mode==="sheet"?"rows":"text lines"} are unchanged.`;
+  const isSheet = R.mode==="sheet";
+  el.innerHTML = `
+    ${R.example?`<div class="examplebar"><b>Example</b> Two sample versions of an office circular are compared below so you can see the output. Choose your own files above to replace it.</div>`:""}
+    <div class="summary">
+      <div class="files">
+        <h2>Files compared</h2>
+        <div class="fileline"><span class="k a">A</span><span class="n">${esc(R.A.name)}<span class="m">${esc(R.A.meta)}</span></span></div>
+        <div class="fileline"><span class="k b">B</span><span class="n">${esc(R.B.name)}<span class="m">${esc(R.B.meta)}</span></span></div>
+        <div class="verdict">${esc(verdict)}</div>
+      </div>
+      <div class="counts">
+        <div class="count"><span class="v">${R.diffs.length}</span><span class="l">Total</span></div>
+        <div class="count mod"><span class="v">${c.modified}</span><span class="l">${isSheet?"Cells changed":"Changed"}</span></div>
+        <div class="count ins"><span class="v">${c.added}</span><span class="l">Added</span></div>
+        <div class="count del"><span class="v">${c.removed}</span><span class="l">Removed</span></div>
+        <div class="sim"><span class="l" style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600">Unchanged ${pct}%</span><div class="simbar"><i style="width:${pct}%"></i></div></div>
+      </div>
+    </div>
+    <div class="dls">
+      <h2>Download the compared file</h2>
+      <div class="dlrow">
+        <button class="btn" type="button" id="dlDocx">Marked-up report (.docx)</button>
+        <button class="btn ghost" type="button" id="dlXlsx">${isSheet?"Compared workbook (.xlsx)":"Differences list (.xlsx)"}</button>
+        <button class="btn ghost" type="button" id="dlHtml">Web report (.html)</button>
+      </div>
+      <div class="dlnote">${isSheet?"The workbook has a Summary sheet, a Differences sheet, and one compared sheet per original sheet with each changed cell shown as old → new.":"The Word report lists every difference, then reproduces the full text with deletions struck through in red and insertions underlined in green."}</div>
+    </div>
+    <div>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-tab="list" aria-selected="${state.tab==="list"}">Differences (${R.diffs.length})</button>
+        <button class="tab" role="tab" data-tab="side" aria-selected="${state.tab==="side"}">${isSheet?"Sheet view":"Side by side"}</button>
+        ${isSheet?"":`<button class="tab" role="tab" data-tab="inline" aria-selected="${state.tab==="inline"}">Redline</button>`}
+      </div>
+      <div class="panel" id="panel"></div>
+    </div>`;
+  el.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{ state.tab=t.dataset.tab; el.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-selected", x===t)); renderPanel(); }));
+  $("dlDocx").addEventListener("click", ()=>download("docx"));
+  $("dlXlsx").addEventListener("click", ()=>download("xlsx"));
+  $("dlHtml").addEventListener("click", ()=>download("html"));
+  renderPanel();
+}
+function renderPanel(){
+  const R=state.result, P=$("panel");
+  if(state.tab==="list") P.innerHTML = listHtml(R);
+  else if(state.tab==="side") P.innerHTML = R.mode==="sheet" ? sheetHtml(R) : sideHtml(R);
+  else P.innerHTML = inlineHtml(R);
+  P.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{ state.filter=b.dataset.f; renderPanel(); }));
+  P.querySelectorAll(".difflist button").forEach(b=>b.addEventListener("click",()=>jumpTo(+b.dataset.n)));
+  P.querySelectorAll(".more").forEach(b=>b.addEventListener("click",()=>{ P.querySelectorAll(`[data-g="${b.dataset.g}"]`).forEach(r=>r.hidden=false); b.closest("tr").remove(); }));
+}
+function listHtml(R){
+  if(!R.diffs.length) return `<div class="empty">No differences. The two files have the same content.</div>`;
+  const f=state.filter, items = R.diffs.filter(d=>f==="all"||d.type===f);
+  const chip=(k,l)=>`<button class="chip" type="button" data-f="${k}" aria-pressed="${f===k}">${l}</button>`;
+  return `<div class="filter">${chip("all","All")}${chip("modified","Changed")}${chip("added","Added")}${chip("removed","Removed")}</div>
+  <ol class="difflist">${items.slice(0,3000).map(d=>`<li><button type="button" data-n="${d.n}" title="Show in ${R.mode==="sheet"?"sheet view":"side by side"}">
+    <span class="dn">#${d.n}</span><span class="pill ${d.type}">${d.type==="modified"?"Changed":d.type==="added"?"Added":"Removed"}</span>
+    <span class="dbody"><span class="dloc">${esc(d.loc)}</span><span class="ddesc">${d.html}</span></span></button></li>`).join("")}</ol>
+  ${items.length>3000?`<p class="note">Showing the first 3,000. The downloads contain all ${items.length}.</p>`:""}
+  ${!items.length?`<div class="empty">None of this type.</div>`:""}`;
+}
+function collapse(rows, renderRow, ncols){
+  const out=[]; let g=0; const CTX=2;
+  for(let i=0;i<rows.length;){
+    if(rows[i].t!=="eq"){ out.push(renderRow(rows[i],false,null)); i++; continue; }
+    let j=i; while(j<rows.length && rows[j].t==="eq") j++;
+    const run=j-i, head = i===0?0:CTX, tail = j===rows.length?0:CTX;
+    if(run > head+tail+3){
+      for(let k=i;k<i+head;k++) out.push(renderRow(rows[k],false,null));
+      g++; const hid=run-head-tail;
+      out.push(`<tr class="gap"><td colspan="${ncols}"><button class="more" type="button" data-g="${g}">Show ${hid} unchanged</button></td></tr>`);
+      for(let k=i+head;k<j-tail;k++) out.push(renderRow(rows[k],true,g));
+      for(let k=j-tail;k<j;k++) out.push(renderRow(rows[k],false,null));
+    } else for(let k=i;k<j;k++) out.push(renderRow(rows[k],false,null));
+    i=j;
+  }
+  return out.join("");
+}
+function sideHtml(R){
+  const rr=(r,hid,g)=>{
+    const id = r.d?` id="d${r.d.n}"`:"", h = hid?` hidden data-g="${g}"`:"";
+    let a=r.a?esc(r.a.text):"", b=r.b?esc(r.b.text):"";
+    if(r.t==="modified"){ a=partsHtml(r.d.parts,"a"); b=partsHtml(r.d.parts,"b"); }
+    return `<tr class="r-${r.t}"${id}${h}><td class="loc" title="${esc(r.a?.loc||"")}">${esc(r.a?.loc||"")}</td><td class="a">${a}</td><td class="loc" title="${esc(r.b?.loc||"")}">${esc(r.b?.loc||"")}</td><td class="b">${b}</td></tr>`;
+  };
+  return `<div class="scroll"><table class="sbs"><colgroup><col class="locc"><col><col class="locc"><col></colgroup>
+    <thead><tr><th></th><th>A · ${esc(clip(R.A.name,40))}</th><th></th><th>B · ${esc(clip(R.B.name,40))}</th></tr></thead>
+    <tbody>${collapse(R.rows, rr, 4)}</tbody></table></div>`;
+}
+function inlineHtml(R){
+  return `<div class="redline">${R.rows.map(r=>{
+    const loc = (r.b||r.a).loc;
+    const id = r.d?` id="d${r.d.n}"`:"";
+    if(r.t==="eq") return `<p><span class="ploc">${esc(loc)}</span>${esc(r.b.text)}</p>`;
+    if(r.t==="modified") return `<p${id}><span class="ploc">${esc(loc)}</span>${partsHtml(r.d.parts,"both")}</p>`;
+    return `<p class="p-${r.t}"${id}><span class="ploc">${esc(loc)}</span>${esc((r.b||r.a).text)}</p>`;
+  }).join("")}</div>`;
+}
+function sheetHtml(R){
+  if(!R.sheets.length) return `<div class="empty">No sheets in common to show.</div>`;
+  return `<p class="note">Changed cells show the old value struck through and the new value underlined. Green rows were inserted in B; red rows exist only in A.</p>` + R.sheets.map(S=>{
+    const nc=Math.min(S.ncol,60);
+    const head = `<tr><th title="Row number in file A">Row A</th><th title="Row number in file B">Row B</th>${range(0,nc).map(c=>`<th>${colName(S.c0+c)}</th>`).join("")}</tr>`;
+    const rr=(r,hid,g)=>{
+      const h = hid?` hidden data-g="${g}"`:"";
+      const x = r.b||r.a, chg = new Map((r.chg||[]).map(o=>[o.c,o.d]));
+      const id = r.d?` id="d${r.d.n}"`:(r.chg&&r.chg.length?` id="d${r.chg[0].d.n}"`:"");
+      const cells = range(0,nc).map(c=>{
+        if(chg.has(c)){ const d=chg.get(c); return `<td class="chg" id="c${d.n}">${d.a!==""?`<del>${esc(d.a)}</del> `:""}${d.b!==""?`<ins>${esc(d.b)}</ins>`:""}</td>`; }
+        return `<td>${esc(x.r[c]??"")}</td>`;
+      }).join("");
+      return `<tr class="r-${r.t}"${id}${h}><td class="rn">${r.a?r.a.num:""}</td><td class="rn">${r.b?r.b.num:""}</td>${cells}</tr>`;
+    };
+    const nd = S.rows.reduce((s,r)=>s+(r.t==="eq"?0:(r.chg?r.chg.length:1)),0);
+    return `<div class="sheethead">${esc(S.name)}<span>${nd} difference${nd===1?"":"s"}${S.ncol>60?" · first 60 columns shown":""}</span></div>
+      <div class="scroll"><table class="grid"><thead>${head}</thead><tbody>${collapse(S.rows, rr, nc+2)}</tbody></table></div>`;
+  }).join("");
+}
+function jumpTo(n){
+  state.tab="side";
+  document.querySelectorAll(".tab").forEach(x=>x.setAttribute("aria-selected", x.dataset.tab==="side"));
+  renderPanel();
+  const el = document.getElementById("c"+n) || document.getElementById("d"+n);
+  if(!el) return;
+  const tr = el.closest("tr")||el;
+  if(tr.hidden){ const g=tr.dataset.g; document.querySelectorAll(`[data-g="${g}"]`).forEach(r=>r.hidden=false); document.querySelector(`.more[data-g="${g}"]`)?.closest("tr")?.remove(); }
+  tr.classList.add("flash");
+  tr.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth", block:"center"});
+}
+
+/* ---------- downloads ---------- */
+function baseName(){ const R=state.result; const s=n=>n.replace(/\.[^.]+$/,"").replace(/[^\w\-. ]+/g,"_").slice(0,40); return `Compare_${s(R.A.name)}_vs_${s(R.B.name)}`; }
+async function saveFile(filename, data){
+  let dl=null;
+  try{ dl = window.claude ? await window.claude.use("downloads") : null; }catch(e){ dl=null; }
+  if(dl){
+    try{ await dl.save({filename, data}); setStatus(`Saved ${filename}.`); }
+    catch(e){
+      if(e && e.code==="declined") setStatus("Download cancelled.");
+      else if(e && e.code==="rate_limited") setStatus("Another download prompt is still open. Finish it, then try again.", true);
+      else setStatus(`Could not save the file here (${e?.code||e?.message||"unknown"}).`, true);
+    }
+    return;
+  }
+  const blob = data instanceof Blob ? data : new Blob([data]);
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();}, 4000);
+  setStatus(`Prepared ${filename}.`);
+}
+async function download(kind){
+  const R=state.result; const name=baseName();
+  try{
+    setStatus("Preparing the file…");
+    if(kind==="html") await saveFile(name+".html", buildHtmlReport(R));
+    if(kind==="xlsx"){ await loadScript(LIB.xlsx); await saveFile(name+".xlsx", buildXlsx(R)); }
+    if(kind==="docx"){ await loadScript(LIB.docx); await saveFile(name+".docx", await buildDocx(R)); }
+  }catch(e){ console.error(e); setStatus(e.message||String(e), true); }
+}
+function typeLabel(t){ return t==="modified"?"Changed":t==="added"?"Added":"Removed"; }
+function summaryRows(R){
+  const c={modified:0,added:0,removed:0}; R.diffs.forEach(d=>c[d.type]++);
+  return [["File A (original)",R.A.name],["File A contents",R.A.meta],["File B (revised)",R.B.name],["File B contents",R.B.meta],
+    ["Compared on",R.when.toLocaleString("en-IN")],["Total differences",R.diffs.length],["Changed",c.modified],["Added",c.added],["Removed",c.removed],
+    ["Unchanged share",Math.round(R.sim*100)+"%"],
+    ["Settings",[R.opt.ws?"extra spaces ignored":"spaces counted",R.opt.case?"case ignored":"case counted",R.opt.blank?"blank lines skipped":"blank lines counted"].join(", ")]];
+}
+function buildXlsx(R){
+  const X=window.XLSX, wb=X.utils.book_new();
+  const s1=X.utils.aoa_to_sheet([["Comparison summary",""],...summaryRows(R)]); s1["!cols"]=[{wch:22},{wch:70}]; X.utils.book_append_sheet(wb,s1,"Summary");
+  const dl=[["No.","Type","Location","In A (original)","In B (revised)","What changed"],...R.diffs.map(d=>[d.n,typeLabel(d.type),d.loc,d.a,d.b,d.txt])];
+  const s2=X.utils.aoa_to_sheet(dl); s2["!cols"]=[{wch:6},{wch:10},{wch:34},{wch:50},{wch:50},{wch:60}]; s2["!autofilter"]={ref:`A1:F${dl.length}`};
+  X.utils.book_append_sheet(wb,s2,"Differences");
+  if(R.mode==="sheet"){
+    const used=new Set(["Summary","Differences"]);
+    for(const S of R.sheets){
+      let nm=("Cmp "+S.name).replace(/[\\\/\?\*\[\]:]/g,"_").slice(0,31), k=2; while(used.has(nm)) nm=nm.slice(0,28)+"_"+(k++); used.add(nm);
+      const aoa=[["Status","Row in A","Row in B",...range(0,S.ncol).map(c=>colName(S.c0+c))]];
+      for(const r of S.rows){
+        const x=r.b||r.a, chg=new Map((r.chg||[]).map(o=>[o.c,o.d]));
+        aoa.push([r.t==="eq"?"":r.t==="modified"?"Changed":r.t==="added"?"Added in B":"Removed from A", r.a?r.a.num:"", r.b?r.b.num:"",
+          ...range(0,S.ncol).map(c=> chg.has(c) ? `${chg.get(c).a===""?"(empty)":chg.get(c).a} → ${chg.get(c).b===""?"(empty)":chg.get(c).b}` : (x.r[c]??""))]);
+      }
+      const ws=X.utils.aoa_to_sheet(aoa); ws["!autofilter"]={ref:`A1:${colName(S.ncol+2)}${aoa.length}`};
+      ws["!cols"]=[{wch:14},{wch:8},{wch:8},...range(0,S.ncol).map(()=>({wch:16}))];
+      X.utils.book_append_sheet(wb,ws,nm);
+    }
+  } else {
+    const aoa=[["Status","Location in A","Text in A","Location in B","Text in B"]];
+    for(const r of R.rows) aoa.push([r.t==="eq"?"":typeLabel(r.t), r.a?.loc||"", r.a?.text||"", r.b?.loc||"", r.b?.text||""]);
+    const ws=X.utils.aoa_to_sheet(aoa); ws["!cols"]=[{wch:10},{wch:16},{wch:60},{wch:16},{wch:60}]; ws["!autofilter"]={ref:`A1:E${aoa.length}`};
+    X.utils.book_append_sheet(wb,ws,"Side by side");
+  }
+  return new Blob([X.write(wb,{type:"array",bookType:"xlsx"})]);
+}
+async function buildDocx(R){
+  const D=window.docx;
+  const RED="C0392B", GREEN="1E7B3E", MUTED="666666", INK="1F3A68";
+  const P=(text,o={})=>new D.Paragraph({children:[new D.TextRun({text:String(text??""),...o})]});
+  const cell=(content,o={})=>new D.TableCell({children: Array.isArray(content)?content:[content], shading:o.fill?{type:D.ShadingType.CLEAR,color:"auto",fill:o.fill}:undefined, width:o.w?{size:o.w,type:D.WidthType.PERCENTAGE}:undefined});
+  const runsFor=(parts)=>parts.map(p=>p.removed?new D.TextRun({text:p.value,strike:true,color:RED}):p.added?new D.TextRun({text:p.value,color:GREEN,underline:{type:D.UnderlineType.SINGLE,color:GREEN}}):new D.TextRun({text:p.value}));
+  const kids=[];
+  kids.push(new D.Paragraph({heading:D.HeadingLevel.TITLE,children:[new D.TextRun({text:"Comparison report"})]}));
+  kids.push(P(`${R.A.name}  →  ${R.B.name}`,{bold:true}));
+  kids.push(P(`Prepared ${R.when.toLocaleString("en-IN")}. Legend: `,{color:MUTED}));
+  kids.push(new D.Paragraph({children:[new D.TextRun({text:"deleted text",strike:true,color:RED}),new D.TextRun({text:"  ·  "}),new D.TextRun({text:"inserted text",color:GREEN,underline:{type:D.UnderlineType.SINGLE,color:GREEN}})]}));
+  kids.push(new D.Paragraph({heading:D.HeadingLevel.HEADING_1,children:[new D.TextRun("Summary")]}));
+  kids.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:summaryRows(R).map(([k,v])=>new D.TableRow({children:[cell(P(k,{bold:true}),{w:30,fill:"EEF1F6"}),cell(P(v),{w:70})]}))}));
+  kids.push(new D.Paragraph({heading:D.HeadingLevel.HEADING_1,children:[new D.TextRun(`Differences noted (${R.diffs.length})`)]}));
+  if(R.diffs.length){
+    const fills={modified:"FDF0D2",added:"DCF2E3",removed:"FBE3E1"};
+    const hdr=new D.TableRow({tableHeader:true,children:["No.","Type","Location","Original (A)","Revised (B)"].map(h=>cell(P(h,{bold:true,color:"FFFFFF"}),{fill:INK}))});
+    const body=R.diffs.slice(0,5000).map(d=>{
+      let aPar=P(d.a), bPar=P(d.b);
+      if(d.parts){ aPar=new D.Paragraph({children:runsFor(d.parts.filter(p=>!p.added))}); bPar=new D.Paragraph({children:runsFor(d.parts.filter(p=>!p.removed))}); }
+      else if(d.type==="removed") aPar=P(d.a,{strike:true,color:RED});
+      else if(d.type==="added") bPar=P(d.b,{color:GREEN,underline:{type:D.UnderlineType.SINGLE,color:GREEN}});
+      else if(d.type==="modified"){ aPar=P(d.a,{strike:true,color:RED}); bPar=P(d.b,{color:GREEN,underline:{type:D.UnderlineType.SINGLE,color:GREEN}}); }
+      return new D.TableRow({children:[cell(P(d.n),{w:6}),cell(P(typeLabel(d.type),{bold:true}),{w:10,fill:fills[d.type]}),cell(P(d.loc,{size:18}),{w:20}),cell(aPar,{w:32}),cell(bPar,{w:32})]});
+    });
+    kids.push(new D.Table({width:{size:100,type:D.WidthType.PERCENTAGE},rows:[hdr,...body]}));
+  } else kids.push(P("No differences were found."));
+  if(R.mode==="text"){
+    kids.push(new D.Paragraph({heading:D.HeadingLevel.HEADING_1,pageBreakBefore:true,children:[new D.TextRun("Marked-up text (B with changes from A)")]}));
+    for(const r of R.rows){
+      const loc=(r.b||r.a).loc, tag=new D.TextRun({text:`[${loc}]  `,color:"999999",size:16});
+      if(r.t==="eq") kids.push(new D.Paragraph({children:[tag,new D.TextRun(r.b.text)]}));
+      else if(r.t==="modified") kids.push(new D.Paragraph({children:[tag,...runsFor(r.d.parts)]}));
+      else if(r.t==="removed") kids.push(new D.Paragraph({children:[tag,new D.TextRun({text:r.a.text,strike:true,color:RED})]}));
+      else kids.push(new D.Paragraph({children:[tag,new D.TextRun({text:r.b.text,color:GREEN,underline:{type:D.UnderlineType.SINGLE,color:GREEN}})]}));
+    }
+  }
+  const doc=new D.Document({creator:"Redline Compare",title:"Comparison report",styles:{default:{document:{run:{font:"Calibri",size:21}}}},
+    sections:[{properties:{page:{margin:{top:1000,bottom:1000,left:1000,right:1000}}},children:kids}]});
+  return await D.Packer.toBlob(doc);
+}
+function buildHtmlReport(R){
+  const css=`body{font-family:Segoe UI,Arial,sans-serif;color:#1b2230;max-width:1100px;margin:24px auto;padding:0 16px;font-size:14px}
+  h1{font-size:24px}h2{font-size:17px;margin-top:28px;border-bottom:2px solid #1f3a68;padding-bottom:4px}
+  table{border-collapse:collapse;width:100%;margin:8px 0}td,th{border:1px solid #ccd2dc;padding:5px 8px;vertical-align:top;text-align:left}
+  th{background:#1f3a68;color:#fff}del{color:#b3261e;background:#fbe3e1}ins{color:#1d6b3a;background:#dcf2e3}
+  .modified{background:#fdf0d2}.added{background:#dcf2e3}.removed{background:#fbe3e1}.loc{font-family:Consolas,monospace;font-size:12px;color:#555}
+  .k{width:200px;font-weight:600;background:#eef1f6}p.r{margin:4px 0;font-family:Georgia,serif;font-size:15px}`;
+  let h=`<!doctype html><html><head><meta charset="utf-8"><title>Comparison – ${esc(R.A.name)} vs ${esc(R.B.name)}</title><style>${css}</style></head><body>
+  <h1>Comparison report</h1><p><b>${esc(R.A.name)}</b> → <b>${esc(R.B.name)}</b></p>
+  <p>Legend: <del>deleted text</del> · <ins>inserted text</ins></p>
+  <h2>Summary</h2><table>${summaryRows(R).map(([k,v])=>`<tr><td class="k">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>
+  <h2>Differences noted (${R.diffs.length})</h2>
+  <table><tr><th>No.</th><th>Type</th><th>Location</th><th>Original (A)</th><th>Revised (B)</th><th>What changed</th></tr>
+  ${R.diffs.map(d=>`<tr><td>${d.n}</td><td class="${d.type}">${typeLabel(d.type)}</td><td class="loc">${esc(d.loc)}</td><td>${d.parts?partsHtml(d.parts,"a"):esc(d.a)}</td><td>${d.parts?partsHtml(d.parts,"b"):esc(d.b)}</td><td>${esc(d.txt)}</td></tr>`).join("")}</table>`;
+  if(R.mode==="text"){
+    h+=`<h2>Marked-up text</h2>`+R.rows.map(r=>{ const loc=`<span class="loc">[${esc((r.b||r.a).loc)}]</span> `;
+      if(r.t==="eq") return `<p class="r">${loc}${esc(r.b.text)}</p>`;
+      if(r.t==="modified") return `<p class="r">${loc}${partsHtml(r.d.parts,"both")}</p>`;
+      if(r.t==="removed") return `<p class="r">${loc}<del>${esc(r.a.text)}</del></p>`;
+      return `<p class="r">${loc}<ins>${esc(r.b.text)}</ins></p>`; }).join("");
+  }
+  return h+`</body></html>`;
+}
+
+/* ---------- example ---------- */
+const EX_A = [
+"Sample Office Circular No. 14/2026",
+"Subject: Field schedule for the village resurvey drive",
+"1. The resurvey drive will begin on 03 November 2026 in all villages of the division.",
+"2. Each Village Surveyor shall complete ground truthing of 40 survey numbers per day.",
+"3. Village Revenue Officers shall publish the draft land register within 15 days of ground truthing.",
+"4. Objections from landholders will be received at the village secretariat until 30 November 2026.",
+"5. Weekly progress reports shall be sent to the divisional office every Monday by 11:00 AM.",
+"6. Drone imagery will be shared with mandal offices in PDF format.",
+"7. Any absence from field duty requires prior permission of the Tahsildar.",
+"This circular comes into force immediately."
+];
+const EX_B = [
+"Sample Office Circular No. 14/2026 (Revised)",
+"Subject: Field schedule for the village resurvey drive",
+"1. The resurvey drive will begin on 10 November 2026 in all villages of the division.",
+"2. Each Village Surveyor shall complete ground truthing of 35 survey numbers per day.",
+"3. Village Revenue Officers shall publish the draft land register within 15 days of ground truthing.",
+"4. Objections from landholders will be received at the village secretariat and online until 07 December 2026.",
+"5. Weekly progress reports shall be sent to the divisional office every Monday by 11:00 AM.",
+"6. Drone imagery will be shared with mandal offices in both PDF and GeoTIFF formats.",
+"7. A help desk will function at each mandal office on all working days.",
+"This circular comes into force immediately."
+];
+function loadExample(){
+  const opt = {ws:$("optWs").checked, case:$("optCase").checked, blank:$("optBlank").checked};
+  const mk=(name,arr)=>({name, kind:"docx", meta:`${arr.length} paragraphs (sample)`, units:arr.map((t,i)=>({loc:`Para ${i+1}`, text:t}))});
+  const A=mk("Circular_14_draft.docx",EX_A), B=mk("Circular_14_revised.docx",EX_B);
+  const R=compareText(A,B,opt); R.A=A; R.B=B; R.opt=opt; R.when=new Date(); R.example=true;
+  state.result=R; render();
+}
+if(window.Diff) loadExample(); else window.addEventListener("load", ()=>{ if(window.Diff) loadExample(); else setStatus("The comparison library did not load. Check the internet connection and reload the page.", true); });
+</script>
+
+</body></html>
